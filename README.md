@@ -1,6 +1,6 @@
 # Wordle
 
-This is a copy of a popular web-game [Wordle](https://www.nytimes.com/games/wordle/)
+This is a reimplementation of a popular web-game [Wordle](https://www.nytimes.com/games/wordle/)
 
 ## Features
 
