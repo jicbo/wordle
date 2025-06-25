@@ -23,7 +23,9 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Settings } from "lucide-react"; // Assuming lucide-react is installed for icons
+import { Settings } from "lucide-react";
+import { BookA } from "lucide-react";
+import { Gamepad2 } from "lucide-react";
 
 function createEmptyBoard(rows: number, cols: number): [string, number][][] {
 	const board: [string, number][][] = [];
@@ -332,6 +334,7 @@ export default function Wordle() {
 								resetGame();
 							}}
 						>
+							<Gamepad2 className="h-5 w-5 mr-2" />
 							New Game
 						</AlertDialogAction>
 						<AlertDialogAction onClick={() => setMessage(null)}>
@@ -421,6 +424,19 @@ export default function Wordle() {
 			</div>
 
 			<div className="flex justify-center mt-4 space-x-2">
+				<Button
+					variant="outline"
+					size="lg"
+					onClick={() =>
+						window.open(
+							`https://random-word-api.herokuapp.com/all`,
+							"_blank"
+						)
+					}
+				>
+					<BookA className="h-5 w-5 mr-2" />
+					Word Dict
+				</Button>
 				<Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
 					<DialogTrigger asChild>
 						<Button variant="outline" size="lg">
@@ -479,6 +495,7 @@ export default function Wordle() {
 					</DialogContent>
 				</Dialog>
 				<Button variant="outline" size="lg" onClick={resetGame}>
+					<Gamepad2 className="h-5 w-5 mr-2" />
 					New Game
 				</Button>
 			</div>
