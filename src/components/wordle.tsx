@@ -1,39 +1,487 @@
-"use client"
+"use client";
 
-import React, { useState } from "react";
-import { LetterButton } from "@/components/ui/letter-button";
-import { div } from "motion/react-client";
+import React, { useState, useEffect, useCallback } from "react";
+import { LetterButton } from "@/components/ui/letter-button"; // Assuming this component is set up for variants
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+	DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+import { Settings } from "lucide-react"; // Assuming lucide-react is installed for icons
 
-const WORD_LENGTH = 5;
-const MAX_ATTEMPTS = 6;
-const SOLUTION = "REACT"; // You can randomize this or fetch from a list
+function createEmptyBoard(rows: number, cols: number): [string, number][][] {
+	const board: [string, number][][] = [];
+	for (let i = 0; i < rows; i++) {
+		board[i] = [];
+		for (let j = 0; j < cols; j++) {
+			board[i][j] = ["", -1];
+		}
+	}
+	return board;
+}
 
-const KEYBOARD = [
-  ["Q","W","E","R","T","Y","U","I","O","P"],
-  ["A","S","D","F","G","H","J","K","L"],
-  ["Enter","Z","X","C","V","B","N","M", "Del"]
-]
-
+const KEYBOARD_LAYOUT = [
+	["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
+	["A", "S", "D", "F", "G", "H", "J", "K", "L"],
+	["Enter", "Z", "X", "C", "V", "B", "N", "M", "Del"],
+];
 
 export default function Wordle() {
-  return (
-    <>
-        {KEYBOARD.map((row, rowIndex) => (
-        <div
-          key={rowIndex} // Use rowIndex as key for rows (simple arrays, no unique IDs)
-          className="flex justify-center"
-        >
-          {row.map((key, keyIndex) => (
-            <LetterButton
-              key={`${rowIndex}-${keyIndex}`} // Combine row and key index for a unique key
-              className="m-2"
-              size="input"
-            >
-              {key}
-            </LetterButton>
-          ))}
-        </div>
-      ))}
-    </>
-  );
+	const [wordLength, setWordLength] = useState(5);
+	const [maxAttempts, setMaxAttempts] = useState(6);
+
+	const [tempWordLength, setTempWordLength] = useState(5);
+	const [tempMaxAttempts, setTempMaxAttempts] = useState(6);
+
+	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+	useEffect(() => {
+		if (isSettingsOpen) {
+			setTempWordLength(wordLength);
+			setTempMaxAttempts(maxAttempts);
+		}
+	}, [isSettingsOpen, wordLength, maxAttempts]);
+
+	const [board, setBoard] = useState<[string, number][][]>(() =>
+		createEmptyBoard(maxAttempts, wordLength)
+	);
+
+	const [currentRow, setCurrentRow] = useState(0);
+
+	const [currentCol, setCurrentCol] = useState(0);
+
+	const [message, setMessage] = useState<string | null>(null);
+
+	const [gameOver, setGameOver] = useState(false);
+
+	const [solution, setSolution] = useState("");
+
+	const [keyboardState, setKeyboardState] = useState<
+		Record<string, "default" | "absent" | "present" | "correct">
+	>(() => {
+		const initialState: Record<
+			string,
+			"default" | "absent" | "present" | "correct"
+		> = {};
+		KEYBOARD_LAYOUT.flat().forEach((key) => {
+			if (key.length === 1) {
+				initialState[key] = "default";
+			}
+		});
+		return initialState;
+	});
+
+	const resetGame = useCallback(() => {
+		setBoard(createEmptyBoard(maxAttempts, wordLength));
+		setCurrentRow(0);
+		setCurrentCol(0);
+		setMessage(null);
+		setGameOver(false);
+		setKeyboardState(() => {
+			const initialState: Record<
+				string,
+				"default" | "absent" | "present" | "correct"
+			> = {};
+			KEYBOARD_LAYOUT.flat().forEach((key) => {
+				if (key.length === 1) {
+					initialState[key] = "default";
+				}
+			});
+			return initialState;
+		});
+
+		fetch(`https://random-word-api.herokuapp.com/word?length=${wordLength}`)
+			.then((res) => res.json())
+			.then((data) => {
+				if (data && data.length > 0) {
+					setSolution(data[0].toUpperCase());
+				} else {
+					setSolution("ERROR");
+				}
+			})
+			.catch((error) => {
+				console.error("Error fetching word:", error);
+				setSolution("ERROR");
+			});
+	}, [maxAttempts, wordLength, setSolution]);
+
+	const handleSaveChanges = useCallback(() => {
+		setWordLength(tempWordLength);
+		setMaxAttempts(tempMaxAttempts);
+		localStorage.setItem("wordLength", tempWordLength.toString());
+		localStorage.setItem("maxAttempts", tempMaxAttempts.toString());
+		setIsSettingsOpen(false);
+	}, [tempWordLength, tempMaxAttempts, setIsSettingsOpen]);
+
+	useEffect(() => {
+		if (typeof window !== "undefined") {
+			const savedWordLength = localStorage.getItem("wordLength");
+			const savedMaxAttempts = localStorage.getItem("maxAttempts");
+			if (savedWordLength) {
+				setWordLength(parseInt(savedWordLength, 10));
+			}
+			if (savedMaxAttempts) {
+				setMaxAttempts(parseInt(savedMaxAttempts, 10));
+			}
+		}
+		resetGame();
+	}, [wordLength, maxAttempts, resetGame]);
+
+	const handleCharInput = useCallback(
+		(char: string) => {
+			if (
+				gameOver ||
+				currentRow >= maxAttempts ||
+				currentCol >= wordLength
+			) {
+				return;
+			}
+
+			setBoard((prevBoard) => {
+				const newBoard = [...prevBoard];
+				newBoard[currentRow] = [...newBoard[currentRow]];
+				newBoard[currentRow][currentCol] = [char, -1];
+				return newBoard;
+			});
+
+			setCurrentCol((prevCol) => prevCol + 1);
+		},
+		[currentRow, currentCol, gameOver]
+	);
+
+	const handleEnter = useCallback(async () => {
+		if (gameOver) return;
+
+		if (currentCol < wordLength) {
+			setMessage("Not enough letters!");
+			return;
+		}
+
+		const currentGuess = board[currentRow]
+			.map((cell) => cell[0]) // Extract letters from the current row
+			.join("");
+
+		if (currentGuess.length !== wordLength) {
+			setMessage("Word is too short!");
+			return;
+		}
+
+		const response = await fetch("/api/validate-word", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ word: currentGuess }),
+		});
+
+		const data = await response.json();
+
+		if (!data.isValid) {
+			toast.error(`${currentGuess} is not in the dictionary.`);
+			return;
+		}
+
+		const newBoard = [...board];
+		newBoard[currentRow] = [...newBoard[currentRow]];
+
+		let solved = true;
+
+		const solutionLetters: (string | null)[] = solution.split("");
+
+		for (let i = 0; i < wordLength; i++) {
+			if (currentGuess[i] === solution[i]) {
+				newBoard[currentRow][i] = [currentGuess[i], 1];
+				solutionLetters[i] = null;
+			}
+		}
+
+		for (let i = 0; i < wordLength; i++) {
+			if (newBoard[currentRow][i][1] === 1) {
+				continue;
+			}
+
+			const letter = currentGuess[i];
+			const solutionIndex = solutionLetters.indexOf(letter);
+
+			if (solutionIndex !== -1) {
+				newBoard[currentRow][i] = [letter, 2];
+				solutionLetters[solutionIndex] = null;
+			} else {
+				newBoard[currentRow][i] = [letter, 0];
+			}
+		}
+
+		setBoard(newBoard);
+
+		setKeyboardState((prevKeyboardState) => {
+			const newKeyboardState = { ...prevKeyboardState };
+			for (let i = 0; i < wordLength; i++) {
+				const letter = currentGuess[i];
+				const status = newBoard[currentRow][i][1];
+
+				if (status === 1) {
+					newKeyboardState[letter] = "correct";
+				} else if (
+					status === 2 &&
+					newKeyboardState[letter] !== "correct"
+				) {
+					newKeyboardState[letter] = "present";
+				} else if (
+					status === 0 &&
+					newKeyboardState[letter] !== "correct" &&
+					newKeyboardState[letter] !== "present"
+				) {
+					newKeyboardState[letter] = "absent";
+				}
+			}
+			return newKeyboardState;
+		});
+
+		if (currentGuess === solution) {
+			setMessage("You guessed it! You won!");
+			setGameOver(true);
+		} else if (currentRow === maxAttempts - 1) {
+			setMessage(`Game Over! The word was ${solution}`);
+			setGameOver(true);
+		} else {
+			setCurrentRow((prevRow) => prevRow + 1);
+			setCurrentCol(0);
+			setMessage(null);
+		}
+	}, [
+		board,
+		currentRow,
+		currentCol,
+		gameOver,
+		setKeyboardState,
+		wordLength,
+		maxAttempts,
+		solution,
+	]);
+
+	const handleDelete = useCallback(() => {
+		if (gameOver || currentCol === 0) {
+			return;
+		}
+
+		setBoard((prevBoard) => {
+			const newBoard = [...prevBoard];
+			newBoard[currentRow] = [...newBoard[currentRow]];
+			newBoard[currentRow][currentCol - 1] = ["", -1];
+			return newBoard;
+		});
+
+		setCurrentCol((prevCol) => prevCol - 1);
+		setMessage(null);
+	}, [currentRow, currentCol, gameOver]);
+
+	useEffect(() => {
+		const handleKeyPress = (event: KeyboardEvent) => {
+			if (gameOver) return;
+
+			const key = event.key.toUpperCase();
+
+			if (key === "BACKSPACE" || key === "DELETE") {
+				handleDelete();
+			} else if (key === "ENTER") {
+				handleEnter();
+			} else if (key.length === 1 && key >= "A" && key <= "Z") {
+				handleCharInput(key);
+			}
+		};
+
+		window.addEventListener("keydown", handleKeyPress);
+
+		return () => {
+			window.removeEventListener("keydown", handleKeyPress);
+		};
+	}, [handleCharInput, handleEnter, handleDelete, gameOver]);
+
+	return (
+		<div id="wordle" className="flex flex-col space-y-6 relative">
+			<AlertDialog open={!!message} onOpenChange={() => setMessage(null)}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							{gameOver ? "Game Over" : "Wordle Message"}
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							{message}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogAction
+							onClick={() => {
+								setMessage(null);
+								resetGame();
+							}}
+						>
+							New Game
+						</AlertDialogAction>
+						<AlertDialogAction onClick={() => setMessage(null)}>
+							OK
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+
+			<div id="board">
+				{board.map((row, rowIndex) => (
+					<div key={rowIndex} className="flex justify-center">
+						{row.map((cellData, colIndex) => {
+							const [letter, status] = cellData;
+
+							let cellVariant:
+								| "empty"
+								| "absent"
+								| "correct"
+								| "present"
+								| "default";
+							switch (status) {
+								case -1:
+									cellVariant = "empty";
+									break;
+								case 0:
+									cellVariant = "absent";
+									break;
+								case 1:
+									cellVariant = "correct";
+									break;
+								case 2:
+									cellVariant = "present";
+									break;
+								default:
+									cellVariant = "default";
+									break;
+							}
+
+							return (
+								<LetterButton
+									key={`${rowIndex}-${colIndex}`}
+									className={`m-1 ${
+										rowIndex === currentRow &&
+										colIndex === currentCol
+											? "border-2 border-blue-500"
+											: ""
+									}`}
+									variant={cellVariant}
+								>
+									{letter}
+								</LetterButton>
+							);
+						})}
+					</div>
+				))}
+			</div>
+
+			<div id="keyboard">
+				{KEYBOARD_LAYOUT.map((row, rowIndex) => (
+					<div key={rowIndex} className="flex justify-center">
+						{row.map((keyChar, keyIndex) => (
+							<LetterButton
+								key={`${rowIndex}-${keyIndex}`}
+								className="m-2"
+								size={
+									keyChar === "Enter" || keyChar === "Del"
+										? "auto"
+										: "input"
+								}
+								onClick={() => {
+									if (keyChar === "Enter") {
+										handleEnter();
+									} else if (keyChar === "Del") {
+										handleDelete();
+									} else {
+										handleCharInput(keyChar);
+									}
+								}}
+								variant={keyboardState[keyChar] || "default"}
+							>
+								{keyChar}
+							</LetterButton>
+						))}
+					</div>
+				))}
+			</div>
+
+			<div className="absolute top-4 right-4">
+				<Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+					<DialogTrigger asChild>
+						<Button variant="ghost" size="icon">
+							<Settings className="h-6 w-6" />
+						</Button>
+					</DialogTrigger>
+					<DialogContent>
+						<DialogHeader>
+							<DialogTitle>Game Settings</DialogTitle>
+						</DialogHeader>
+						<div className="grid gap-4 py-4">
+							<div className="grid grid-cols-4 items-center gap-4">
+								<Label
+									htmlFor="word-length"
+									className="text-right"
+								>
+									Word Length
+								</Label>
+								<Input
+									id="word-length"
+									type="number"
+									value={tempWordLength}
+									onChange={(e) =>
+										setTempWordLength(
+											Number(e.target.value)
+										)
+									}
+									className="col-span-3"
+								/>
+							</div>
+							<div className="grid grid-cols-4 items-center gap-4">
+								<Label
+									htmlFor="max-attempts"
+									className="text-right"
+								>
+									Max Attempts
+								</Label>
+								<Input
+									id="max-attempts"
+									type="number"
+									value={tempMaxAttempts}
+									onChange={(e) =>
+										setTempMaxAttempts(
+											Number(e.target.value)
+										)
+									}
+									className="col-span-3"
+								/>
+							</div>
+						</div>
+						<DialogFooter>
+							<Button type="submit" onClick={handleSaveChanges}>
+								Save changes
+							</Button>
+							<Button variant="outline" onClick={resetGame}>
+								New Game
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+			</div>
+		</div>
+	);
 }
