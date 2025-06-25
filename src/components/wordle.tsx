@@ -53,6 +53,10 @@ export default function Wordle() {
 
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+	const [usedWords, setUsedWords] = useState<string[]>([]);
+
+	const [isLoading, setIsLoading] = useState(false);
+
 	useEffect(() => {
 		if (isSettingsOpen) {
 			setTempWordLength(wordLength);
@@ -90,6 +94,7 @@ export default function Wordle() {
 	});
 
 	const resetGame = useCallback(() => {
+		setUsedWords([]);
 		setBoard(createEmptyBoard(maxAttempts, wordLength));
 		setCurrentRow(0);
 		setCurrentCol(0);
@@ -184,88 +189,100 @@ export default function Wordle() {
 			return;
 		}
 
-		const response = await fetch("/api/validate-word", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({ word: currentGuess }),
-		});
-
-		const data = await response.json();
-
-		if (!data.isValid) {
-			toast.error(`${currentGuess} is not in the dictionary.`);
+		if (usedWords.includes(currentGuess)) {
+			toast.error("Word has already been used!");
 			return;
 		}
 
-		const newBoard = [...board];
-		newBoard[currentRow] = [...newBoard[currentRow]];
+		setIsLoading(true);
 
-		let solved = true;
+		try {
+			const response = await fetch("/api/validate-word", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ word: currentGuess }),
+			});
 
-		const solutionLetters: (string | null)[] = solution.split("");
+			const data = await response.json();
 
-		for (let i = 0; i < wordLength; i++) {
-			if (currentGuess[i] === solution[i]) {
-				newBoard[currentRow][i] = [currentGuess[i], 1];
-				solutionLetters[i] = null;
+			if (!data.isValid) {
+				toast.error(`${currentGuess} is not in the dictionary.`);
+				return;
 			}
-		}
 
-		for (let i = 0; i < wordLength; i++) {
-			if (newBoard[currentRow][i][1] === 1) {
-				continue;
-			}
+			const newBoard = [...board];
+			newBoard[currentRow] = [...newBoard[currentRow]];
 
-			const letter = currentGuess[i];
-			const solutionIndex = solutionLetters.indexOf(letter);
+			let solved = true;
 
-			if (solutionIndex !== -1) {
-				newBoard[currentRow][i] = [letter, 2];
-				solutionLetters[solutionIndex] = null;
-			} else {
-				newBoard[currentRow][i] = [letter, 0];
-			}
-		}
+			const solutionLetters: (string | null)[] = solution.split("");
 
-		setBoard(newBoard);
-
-		setKeyboardState((prevKeyboardState) => {
-			const newKeyboardState = { ...prevKeyboardState };
 			for (let i = 0; i < wordLength; i++) {
-				const letter = currentGuess[i];
-				const status = newBoard[currentRow][i][1];
-
-				if (status === 1) {
-					newKeyboardState[letter] = "correct";
-				} else if (
-					status === 2 &&
-					newKeyboardState[letter] !== "correct"
-				) {
-					newKeyboardState[letter] = "present";
-				} else if (
-					status === 0 &&
-					newKeyboardState[letter] !== "correct" &&
-					newKeyboardState[letter] !== "present"
-				) {
-					newKeyboardState[letter] = "absent";
+				if (currentGuess[i] === solution[i]) {
+					newBoard[currentRow][i] = [currentGuess[i], 1];
+					solutionLetters[i] = null;
 				}
 			}
-			return newKeyboardState;
-		});
 
-		if (currentGuess === solution) {
-			setMessage("You guessed it! You won!");
-			setGameOver(true);
-			return;
-		} else if (currentRow === maxAttempts - 1) {
-			setMessage(`Game Over! The word was ${solution}`);
-			setGameOver(true);
-			return;
-		} else {
-			setCurrentRow((prevRow) => prevRow + 1);
-			setCurrentCol(0);
+			for (let i = 0; i < wordLength; i++) {
+				if (newBoard[currentRow][i][1] === 1) {
+					continue;
+				}
+
+				const letter = currentGuess[i];
+				const solutionIndex = solutionLetters.indexOf(letter);
+
+				if (solutionIndex !== -1) {
+					newBoard[currentRow][i] = [letter, 2];
+					solutionLetters[solutionIndex] = null;
+				} else {
+					newBoard[currentRow][i] = [letter, 0];
+				}
+			}
+
+			setBoard(newBoard);
+
+			setKeyboardState((prevKeyboardState) => {
+				const newKeyboardState = { ...prevKeyboardState };
+				for (let i = 0; i < wordLength; i++) {
+					const letter = currentGuess[i];
+					const status = newBoard[currentRow][i][1];
+
+					if (status === 1) {
+						newKeyboardState[letter] = "correct";
+					} else if (
+						status === 2 &&
+						newKeyboardState[letter] !== "correct"
+					) {
+						newKeyboardState[letter] = "present";
+					} else if (
+						status === 0 &&
+						newKeyboardState[letter] !== "correct" &&
+						newKeyboardState[letter] !== "present"
+					) {
+						newKeyboardState[letter] = "absent";
+					}
+				}
+				return newKeyboardState;
+			});
+
+			if (currentGuess === solution) {
+				setMessage("You guessed it! The word was ${solution}");
+				setGameOver(true);
+				return;
+			} else if (currentRow === maxAttempts - 1) {
+				setMessage(`Game Over! The word was ${solution}`);
+				setGameOver(true);
+				return;
+			} else {
+				setCurrentRow((prevRow) => prevRow + 1);
+				setCurrentCol(0);
+				setUsedWords((prevWords) => [...prevWords, currentGuess]);
+			}
+		} finally {
+			setIsLoading(false);
 		}
 	}, [
 		board,
@@ -276,6 +293,8 @@ export default function Wordle() {
 		wordLength,
 		maxAttempts,
 		solution,
+		usedWords,
+		isLoading,
 	]);
 
 	const handleDelete = useCallback(() => {
@@ -296,7 +315,7 @@ export default function Wordle() {
 
 	useEffect(() => {
 		const handleKeyPress = (event: KeyboardEvent) => {
-			if (gameOver) return;
+			if (gameOver || isLoading) return;
 
 			const key = event.key.toUpperCase();
 
@@ -314,7 +333,7 @@ export default function Wordle() {
 		return () => {
 			window.removeEventListener("keydown", handleKeyPress);
 		};
-	}, [handleCharInput, handleEnter, handleDelete, gameOver]);
+	}, [handleCharInput, handleEnter, handleDelete, gameOver, isLoading]);
 
 	return (
 		<div id="wordle" className="flex flex-col space-y-6 relative">
