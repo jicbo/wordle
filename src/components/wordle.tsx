@@ -171,7 +171,7 @@ export default function Wordle() {
 		if (gameOver) return;
 
 		if (currentCol < wordLength) {
-			setMessage("Not enough letters!");
+			toast.error("Not enough letters!");
 			return;
 		}
 
@@ -180,7 +180,7 @@ export default function Wordle() {
 			.join("");
 
 		if (currentGuess.length !== wordLength) {
-			setMessage("Word is too short!");
+			toast.error("Word is too short!");
 			return;
 		}
 
@@ -258,13 +258,14 @@ export default function Wordle() {
 		if (currentGuess === solution) {
 			setMessage("You guessed it! You won!");
 			setGameOver(true);
+			return;
 		} else if (currentRow === maxAttempts - 1) {
 			setMessage(`Game Over! The word was ${solution}`);
 			setGameOver(true);
+			return;
 		} else {
 			setCurrentRow((prevRow) => prevRow + 1);
 			setCurrentCol(0);
-			setMessage(null);
 		}
 	}, [
 		board,
@@ -317,17 +318,25 @@ export default function Wordle() {
 
 	return (
 		<div id="wordle" className="flex flex-col space-y-6 relative">
-			<AlertDialog open={!!message} onOpenChange={() => setMessage(null)}>
+			<AlertDialog
+				open={gameOver && !!message}
+				onOpenChange={() => setMessage(null)}
+			>
 				<AlertDialogContent>
 					<AlertDialogHeader>
 						<AlertDialogTitle>
-							{gameOver ? "Game Over" : "Wordle Message"}
+							{message === "You guessed it! You won!"
+								? "Congratulations!"
+								: "Game Over"}
 						</AlertDialogTitle>
 						<AlertDialogDescription>
 							{message}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
-					<AlertDialogFooter>
+					<AlertDialogFooter className="flex justify-between">
+						<AlertDialogAction onClick={() => setMessage(null)}>
+							Close
+						</AlertDialogAction>
 						<AlertDialogAction
 							onClick={() => {
 								setMessage(null);
@@ -336,9 +345,6 @@ export default function Wordle() {
 						>
 							<Gamepad2 className="h-5 w-5 mr-2" />
 							New Game
-						</AlertDialogAction>
-						<AlertDialogAction onClick={() => setMessage(null)}>
-							OK
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
