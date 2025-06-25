@@ -420,11 +420,11 @@ export default function Wordle() {
 				))}
 			</div>
 
-			<div className="absolute top-4 right-4">
+			<div className="flex justify-center mt-4 space-x-2">
 				<Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
 					<DialogTrigger asChild>
-						<Button variant="ghost" size="icon">
-							<Settings className="h-6 w-6" />
+						<Button variant="outline" size="lg">
+							<Settings className="h-5 w-5 mr-2" /> Settings
 						</Button>
 					</DialogTrigger>
 					<DialogContent>
@@ -475,12 +475,12 @@ export default function Wordle() {
 							<Button type="submit" onClick={handleSaveChanges}>
 								Save changes
 							</Button>
-							<Button variant="outline" onClick={resetGame}>
-								New Game
-							</Button>
 						</DialogFooter>
 					</DialogContent>
 				</Dialog>
+				<Button variant="outline" size="lg" onClick={resetGame}>
+					New Game
+				</Button>
 			</div>
 		</div>
 	);
