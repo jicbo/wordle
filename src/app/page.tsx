@@ -1,9 +1,11 @@
-import Image from "next/image";
+import { LetterButton } from "@/components/ui/letter-button";
+import { ModeToggle } from "@/components/theme-toggle";
+import Wordle from "@/components/wordle";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      
-    </div>
-  );
+	return (
+		<main className="flex min-h-screen flex-col items-center justify-center p-24">
+			<Wordle />
+		</main>
+	);
 }
