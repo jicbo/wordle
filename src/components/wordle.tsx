@@ -470,6 +470,8 @@ export default function Wordle() {
 											Number(e.target.value)
 										)
 									}
+									min={2}
+									max={15}
 									className="col-span-3"
 								/>
 							</div>
@@ -489,6 +491,8 @@ export default function Wordle() {
 											Number(e.target.value)
 										)
 									}
+									min={1}
+									max={12}
 									className="col-span-3"
 								/>
 							</div>
